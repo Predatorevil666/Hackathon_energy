@@ -1,0 +1,27 @@
+
+# Глобальные владельцы по умолчанию (если другие правила не сработали)
+* @predatorevil666
+
+# Инфраструктура и Docker
+docker-compose.yml @predatorevil666
+.github/workflows/ @predatorevil666
+
+# FastAPI приложение
+/app/ @predatorevil666
+
+# Frontend
+/frontend/ @krasava1702
+
+# ETL и ML компоненты
+/etl/ @mk1MoreBugs 
+/ml/ @mk1MoreBugs
+
+# Обработка данных и отчеты
+/batch/ @mk1MoreBugs
+/report/ @mk1MoreBugs
+
+# Airflow DAGs
+/airflow/ @predatorevil666
+
+# Зависимости
+requirements.txt @predatorevil666

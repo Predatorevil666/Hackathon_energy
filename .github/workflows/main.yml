@@ -1,0 +1,281 @@
+name: Hackaton_Energy workflow
+permissions:
+  contents: read
+  packages: write
+
+on:
+  push:
+    branches: 
+      - dev
+      - feature/**
+   
+  pull_request:
+    branches: [main, dev]
+ 
+
+
+
+
+env:
+     
+      # Резервные значения на случай отсутствия секретов
+      POSTGRES_DB: ${{ secrets.POSTGRES_DB || 'yoga_db' }}
+      POSTGRES_USER: ${{ secrets.POSTGRES_USER || 'postgres' }}
+      POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD || 'postgres' }}
+
+      DATABASE_URL: ${{ secrets.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/yoga_db' }}
+      TEST_DATABASE_URL: ${{ secrets.TEST_DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/test_db' }}
+      
+
+      PYTHONPATH: ${{ github.workspace }}
+      ECHO_SQL: "True"
+
+      DOCKER_REGISTRY: ghcr.io
+      DOCKER_NAMESPACE: ${{ secrets.GHCR_OWNER || github.repository_owner }}
+
+jobs:
+  
+
+  backend_tests:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:13
+        env:
+          POSTGRES_USER: ${{ secrets.POSTGRES_USER || 'postgres' }}
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD || 'postgres' }}
+          POSTGRES_DB: ${{ secrets.POSTGRES_DB || 'yoga_db' }}
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v3
+
+      - name: Create test database
+        run: |
+          PGPASSWORD=${{ secrets.POSTGRES_PASSWORD || 'postgres' }} psql -h localhost -U ${{ secrets.POSTGRES_USER || 'postgres' }} -d postgres -c "CREATE DATABASE test_db;"
+
+      - name: Cache Python dependencies
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('backend/requirements.txt')}}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: 3.12
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install ruff mypy
+          pip install -r /backend/requirements.txt
+
+      - name: Copy ruff config
+        run: |
+          cp .backend/pyproject.toml ./backend/pyproject.toml
+
+      - name: Run ruff check
+        run: |
+          cd backend && ruff check . 1> ./ruff.log 2> ./ruff.error.log || true
+
+      - name: Run ruff format check
+        run: |
+          cd backend && ruff format --check . 1> ./ruff.format.log 2> ./ruff.format.error.log || true
+
+      - name: Type check with mypy
+        run: |
+          cd backend && mypy . 1> ./mypy.log 2> ./mypy.error.log || true
+
+      - name: Run tests
+        run: |
+          cd backend
+          pytest tests -v
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-artifacts
+          path: |
+            backend/ruff.log
+            backend/ruff.error.log
+            backend/ruff.format.log
+            backend/ruff.format.error.log
+            backend/mypy.log
+            backend/mypy.error.log
+
+  frontend_test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          
+      - name: Cache Node modules
+        uses: actions/cache@v3
+        with:
+          path: |
+            **/node_modules
+          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Lint and Type check Frontend
+        working-directory: frontend
+        run: npm run lint > lint.log 2> lint.error.log || true
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-artifacts
+          path: |
+            frontend/lint.log
+            frontend/lint.error.log
+
+  build_backend_and_push_to_ghcr:
+    name: Build and push backend Docker image
+    runs-on: ubuntu-latest
+    needs: backend_tests
+   
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+        with:
+          driver-opts: |
+            image=moby/buildkit:v0.20.2
+            network=host
+
+      - name: Cache Docker layers
+        uses: actions/cache@v3
+        with:
+          path: /tmp/.buildx-cache
+          key: ${{ runner.os }}-docker-backend-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-docker-backend-
+
+      - name: Log in to ghcr.io
+        uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      
+      - name: Push to GHCR registry
+        uses: docker/build-push-action@v4
+        with:
+          context: backend
+          file: backend/Dockerfile
+          push: true
+          build-args: |
+            POSTGRES_USER=${{ secrets.POSTGRES_USER }}
+            POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}
+            POSTGRES_DB=${{ secrets.POSTGRES_DB }}
+            DATABASE_URL=${{ secrets.DATABASE_URL }}
+            TEST_DATABASE_URL=${{ secrets.TEST_DATABASE_URL }}
+            ECHO_SQL=${{ env.ECHO_SQL }}
+            PYTHONPATH=${{ env.PYTHONPATH }}
+          cache-from: type=local,src=/tmp/.buildx-cache
+          cache-to: type=local,dest=/tmp/.buildx-cache-new,mode=max
+          tags: |
+            ${{ env.DOCKER_REGISTRY }}/${{ env.DOCKER_NAMESPACE }}/hackaton-energy-backend:${{ env.VERSION }}
+            ${{ env.DOCKER_REGISTRY }}/${{ env.DOCKER_NAMESPACE }}/hackaton-energy-backend:latest
+      
+      # Сканирование на уязвимости
+      - name: Scan Docker image for vulnerabilities
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.DOCKER_REGISTRY }}/${{ env.DOCKER_NAMESPACE }}/hackaton-energy-backend:${{ env.VERSION }}
+          format: 'table'
+          exit-code: '0'
+          ignore-unfixed: true
+          vuln-type: 'os,library'
+          severity: 'CRITICAL,HIGH'
+          
+      # Move cache for next job
+      - name: Move cache
+        run: |
+          rm -rf /tmp/.buildx-cache
+          mv /tmp/.buildx-cache-new /tmp/.buildx-cache
+
+  build_frontend_and_push_to_ghcr:
+    name: Build and push frontend Docker image
+    runs-on: ubuntu-latest
+    needs: frontend_test
+    
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+        with:
+          driver-opts: |
+            image=moby/buildkit:v0.20.2
+            network=host
+
+      - name: Cache Docker layers
+        uses: actions/cache@v3
+        with:
+          path: /tmp/.buildx-cache
+          key: ${{ runner.os }}-docker-frontend-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-docker-frontend-
+
+      - name: Log in to ghcr.io
+        uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+     
+
+      - name: Build and push frontend
+        uses: docker/build-push-action@v4
+        with:
+          context: frontend
+          file: frontend/Dockerfile
+          push: true
+          build-args: |
+            API_URL=${{ secrets.FRONTEND_API_URL }}
+          cache-from: type=local,src=/tmp/.buildx-cache
+          cache-to: type=local,dest=/tmp/.buildx-cache-new,mode=max
+          tags: |
+            ${{ env.DOCKER_REGISTRY }}/${{ env.DOCKER_NAMESPACE }}/hackaton-energy-frontend:${{ env.VERSION }}
+            ${{ env.DOCKER_REGISTRY }}/${{ env.DOCKER_NAMESPACE }}/hackaton-energy-frontend:latest
+
+  send_message:
+    runs-on: ubuntu-latest
+    needs: deploy
+    steps:
+      - name: Send message to Telegram
+        uses: appleboy/telegram-action@master
+        with:
+          to: ${{ secrets.TELEGRAM_TO }}
+          token: ${{ secrets.TELEGRAM_TOKEN }}
+          message: |
+            Деплой Hackaton_Energy успешно выполнен! 🥳
+            Автор изменения: ${{ github.actor }}
+            Сообщение коммита: '${{ github.event.commits[0].message }}'
+            Ссылка на коммит: https://github.com/${{ github.repository }}/commit/${{ github.sha }}
+
