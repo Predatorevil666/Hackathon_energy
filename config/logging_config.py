@@ -1,79 +1,68 @@
 from logging.handlers import TimedRotatingFileHandler, RotatingFileHandler
 import logging
 import os
+import sys
 
 # Получаем путь к корневой директории проекта
 PROJECT_ROOT = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
 
-# Создание папок для логов, если они не существуют
-log_dirs = {
-    "info": os.path.join(PROJECT_ROOT, "logs/logs_info"),
-    "error": os.path.join(PROJECT_ROOT, "logs/logs_error"),
-    "warning": os.path.join(PROJECT_ROOT, "logs/logs_warning"),
-}
+# Настройка логгера
+logger = logging.getLogger('hackathon_energy')
+logger.setLevel(logging.INFO)
 
-for dir in log_dirs.values():
-    if not os.path.exists(dir):
-        os.makedirs(dir)
+# Определяем, находимся ли мы в Docker-контейнере
+IN_DOCKER = os.environ.get('PYTHONPATH', '').startswith('/app:/')
 
-
-# Добавление StreamHandler для вывода в терминал
-console_handler = logging.StreamHandler()
+# Обработчик для вывода в консоль
+console_handler = logging.StreamHandler(sys.stdout)
 console_handler.setLevel(logging.INFO)
-console_handler.setFormatter(
-    logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-)
-
-# Настройка логирования
-info_handler = TimedRotatingFileHandler(
-    filename=os.path.join(
-        log_dirs["info"],
-        "logs_info.log"
-    ),
-    when='M',
-    interval=1,
-    backupCount=30,
-    encoding="utf-8",
-    delay=False,
-    utc=False,
-)
-info_handler.setLevel(logging.DEBUG)
-info_handler.setFormatter(
-    logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-)
-
-error_handler = RotatingFileHandler(
-    os.path.join(
-        log_dirs["error"],
-        "logs_error.log"
-    ),
-    encoding="utf-8"
-)
-error_handler.setLevel(logging.ERROR)
-error_handler.setFormatter(
-    logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-)
-
-warning_handler = RotatingFileHandler(
-    os.path.join(
-        log_dirs["warning"],
-        "logs_warning.log"
-    ),
-    encoding="utf-8"
-)
-warning_handler.setLevel(logging.WARNING)
-warning_handler.setFormatter(
-    logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-)
-
-
-# Основной логгер
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)  # Установите уровень логирования для логгера
-logger.addHandler(info_handler)
-logger.addHandler(error_handler)
-logger.addHandler(warning_handler)
+console_formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+console_handler.setFormatter(console_formatter)
 logger.addHandler(console_handler)
+
+# Если мы не в Docker, настраиваем также запись в файлы
+if not IN_DOCKER:
+    # Создание папок для логов, если они не существуют
+    log_dirs = {
+        "info": os.path.join(PROJECT_ROOT, "logs/logs_info"),
+        "error": os.path.join(PROJECT_ROOT, "logs/logs_error"),
+        "warning": os.path.join(PROJECT_ROOT, "logs/logs_warning"),
+    }
+
+    for dir in log_dirs.values():
+        if not os.path.exists(dir):
+            os.makedirs(dir)
+
+    # Настройка обработчиков для разных уровней логирования
+    info_handler = TimedRotatingFileHandler(
+        os.path.join(log_dirs["info"], "logs_info.log"),
+        when="midnight",
+        backupCount=7,
+    )
+    info_handler.setLevel(logging.INFO)
+    info_formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    info_handler.setFormatter(info_formatter)
+    logger.addHandler(info_handler)
+
+    error_handler = TimedRotatingFileHandler(
+        os.path.join(log_dirs["error"], "logs_error.log"),
+        when="midnight",
+        backupCount=7,
+    )
+    error_handler.setLevel(logging.ERROR)
+    error_formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s - %(exc_info)s')
+    error_handler.setFormatter(error_formatter)
+    logger.addHandler(error_handler)
+
+    warning_handler = TimedRotatingFileHandler(
+        os.path.join(log_dirs["warning"], "logs_warning.log"),
+        when="midnight",
+        backupCount=7,
+    )
+    warning_handler.setLevel(logging.WARNING)
+    warning_formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    warning_handler.setFormatter(warning_formatter)
+    logger.addHandler(warning_handler)
 
 # Логирование SQLAlchemy
 logging.getLogger('sqlalchemy.engine').setLevel(logging.DEBUG) 

@@ -94,6 +94,73 @@ python batch_predict.py \
   --aws-secret-access-key minio123
 ```
 
+## 📊 Структура базы данных
+
+### Таблица Contacts
+Таблица `contacts` хранит контактные данные, собранные с помощью OSINT.
+
+| Поле       | Тип           | Описание                               |
+|------------|---------------|----------------------------------------|
+| id         | SERIAL        | Первичный ключ                         |
+| account_id | INTEGER       | ID аккаунта потребителя энергии        |
+| phone      | VARCHAR(20)   | Номер телефона                         |
+| email      | VARCHAR(255)  | Электронная почта                      |
+| url1       | VARCHAR(512)  | Основной URL контакта                  |
+| url2       | VARCHAR(512)  | Дополнительный URL контакта            |
+| comment    | TEXT          | Комментарий или дополнительная информация |
+| created_at | TIMESTAMP     | Дата и время создания записи           |
+| updated_at | TIMESTAMP     | Дата и время последнего обновления     |
+
+#### Индексы
+- `idx_contacts_account_id` - для быстрого поиска по account_id
+- `idx_contacts_phone` - для поиска по телефону
+- `idx_contacts_email` - для поиска по email
+
+## 🐳 Docker
+
+### Особенности Docker-конфигурации
+
+- **Многоэтапная сборка**: Оптимизирует размер образов и повышает безопасность
+- **Непривилегированный пользователь**: Контейнеры запускаются от имени `appuser` для безопасности
+- **Монтирование логов**: Логи сохраняются в директории `logs` на хосте
+- **Entrypoint**: Обеспечивает корректную настройку прав доступа для логов
+
+### Полезные команды Docker
+
+```bash
+# Запуск сервисов
+docker-compose up -d
+
+# Просмотр логов
+docker-compose logs -f backend
+
+# Доступ к контейнеру под пользователем appuser
+docker-compose exec backend bash
+
+# Доступ к контейнеру под root для администрирования
+docker-compose exec -u root backend bash
+
+# Применение SQL-скриптов к базе данных
+docker-compose exec postgres psql -U postgres -d energy_db -f /docker-entrypoint-initdb.d/create_contacts_table.sql
+```
+
+## 📥 Загрузка данных
+
+### Загрузка контактных данных из OSINT
+
+Для загрузки контактных данных используйте скрипт `load_contacts.py`:
+
+```bash
+python app/backend/load_contacts.py --input path/to/osint_results.json
+```
+
+#### Поддерживаемые форматы
+- JSON: содержит массив объектов с полями account_id, phone, email и т.д.
+- CSV: содержит колонки account_id, phone, email и т.д.
+
+#### Обработка дубликатов
+Скрипт автоматически обрабатывает дубликаты, обновляя существующие записи новыми данными.
+
 ## 📊 Airflow DAGs
 
 В проекте настроены DAG для Apache Airflow, автоматизирующие регулярные задачи.
@@ -163,10 +230,15 @@ airflow tasks test monthly_batch_predict ensure_output_dir 2023-01-01
 │   │   ├── tests         # Тесты
 │   │   ├── main.py       # Точка входа FastAPI
 │   │   ├── models.py     # Pydantic модели
-│   │   └── predict.py    # Логика предсказаний
+│   │   ├── predict.py    # Логика предсказаний
+│   │   ├── load_contacts.py # Загрузка контактных данных
+│   │   ├── entrypoint.sh # Entrypoint скрипт для Docker
+│   │   └── Dockerfile    # Dockerfile для backend
 │   └── frontend          # Frontend (будет добавлен позже)
 ├── config                # Конфигурационные файлы
-├── logs                  # Логи
+├── database              # SQL-скрипты
+│   └── create_contacts_table.sql # Создание таблицы contacts
+├── logs                  # Логи приложения
 ├── batch_predict.py      # Скрипт пакетного предсказания
 ├── docker-compose.yml    # Конфигурация Docker Compose
 ├── requirements.txt      # Python зависимости

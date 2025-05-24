@@ -1,46 +1,94 @@
 services:
   minio:
     image: minio/minio:latest
+    container_name: minio
     command: server /data --console-address ":9001"
     environment:
-      MINIO_ROOT_USER: minio
-      MINIO_ROOT_PASSWORD: minio123
-    ports: [ "9000:9000", "9001:9001" ]
-    volumes: [ minio-data:/data ]
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-minio}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:-minio123}
+    ports:
+      - "9000:9000"  # API
+      - "9001:9001"  # Консоль
+    volumes:
+      - minio-data:/data
+    restart: unless-stopped
 
   postgres:
     image: postgres:16
+    container_name: postgres
     environment:
-      POSTGRES_USER: pguser
-      POSTGRES_PASSWORD: pgpass
-      POSTGRES_DB: chestnykvt
-    ports: [ "5432:5432" ]
-    volumes: [ pg-data:/var/lib/postgresql/data ]
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-energy_db}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+      # Автоматическое выполнение скрипта создания таблиц
+      - ./database:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
 
   mlflow:
     image: ghcr.io/mlflow/mlflow:v2.12.2
+    container_name: mlflow
     environment:
       MLFLOW_BACKEND_STORE_URI: postgresql://pguser:pgpass@postgres:5432/chestnykvt
       MLFLOW_ARTIFACT_ROOT: s3://mlflow/
       AWS_ACCESS_KEY_ID: minio
       AWS_SECRET_ACCESS_KEY: minio123
       MLFLOW_S3_ENDPOINT_URL: http://minio:9000
-    depends_on: [ minio, postgres ]
-    ports: [ "5000:5000" ]
+    depends_on:
+      minio:
+        condition: service_started
+      postgres:
+        condition: service_healthy
+    ports:
+      - "5000:5000"
+    restart: unless-stopped
 
-  fastapi:
-    build: .
+  backend:
+    build:
+      context: ./app/backend
+      dockerfile: Dockerfile
+    container_name: backend
     environment:
-      MODEL_PATH: /model/model.pkl
-      S3_ENDPOINT: http://minio:9000
-      AWS_ACCESS_KEY_ID: minio
-      AWS_SECRET_ACCESS_KEY: minio123
-    ports: [ "8000:8000" ]
-    volumes: [ ./model:/model ]
-    depends_on: [ minio ]
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-energy_db}
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-minio}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-minio123}
+      MINIO_BUCKET: ${MINIO_BUCKET:-models}
+      PYTHONPATH: /app:/
+    ports:
+      - "8003:8000"
+    volumes:
+      - ./logs:/app/logs
+      - ./config:/app/config
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_started
+    restart: unless-stopped
+
+  # frontend:
+  #   build: 
+  #     context: ./app/frontend
+  #     dockerfile: Dockerfile
+  #   container_name: frontend
+  #   ports:
+  #     - "80:80"
+  #   depends_on:
+  #     - backend
+  #   restart: unless-stopped
 
   airflow-scheduler:
     image: apache/airflow:2.9.0
+    container_name: airflow-scheduler
     environment:
       AIRFLOW__CORE__EXECUTOR: LocalExecutor
       AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://pguser:pgpass@postgres:5432/airflow
@@ -53,10 +101,14 @@ services:
     command: >
       bash -c "airflow db migrate &&
                airflow scheduler"
-    depends_on: [ postgres ]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
 
   airflow-webserver:
     image: apache/airflow:2.9.0
+    container_name: airflow-webserver
     environment:
       AIRFLOW__CORE__EXECUTOR: LocalExecutor
       AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://pguser:pgpass@postgres:5432/airflow
@@ -66,8 +118,12 @@ services:
       - ./airflow/logs:/opt/airflow/logs
       - airflow-data:/opt/airflow
     command: bash -c "airflow webserver"
-    ports: [ "8080:8080" ]
-    depends_on: [ airflow-scheduler ]
+    ports:
+      - "8080:8080"
+    depends_on:
+      airflow-scheduler:
+        condition: service_healthy
+    restart: unless-stopped
 
 volumes:
   pg-data:
