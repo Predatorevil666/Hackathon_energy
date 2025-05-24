@@ -20,6 +20,7 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
       POSTGRES_DB: ${POSTGRES_DB:-energy_db}
+      POSTGRES_MULTIPLE_DATABASES: "energy_db,airflow,mlflow"
     ports:
       - "5432:5432"
     volumes:
@@ -36,12 +37,15 @@ services:
   mlflow:
     image: ghcr.io/mlflow/mlflow:v2.12.2
     container_name: mlflow
+    entrypoint: >
+      bash -c "
+        pip install psycopg2-binary &&
+        mlflow server --host 0.0.0.0 --backend-store-uri postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/mlflow --default-artifact-root s3://mlflow/
+      "
     environment:
-      MLFLOW_BACKEND_STORE_URI: postgresql://pguser:pgpass@postgres:5432/chestnykvt
-      MLFLOW_ARTIFACT_ROOT: s3://mlflow/
-      AWS_ACCESS_KEY_ID: minio
-      AWS_SECRET_ACCESS_KEY: minio123
       MLFLOW_S3_ENDPOINT_URL: http://minio:9000
+      AWS_ACCESS_KEY_ID: ${MINIO_ACCESS_KEY:-minio}
+      AWS_SECRET_ACCESS_KEY: ${MINIO_SECRET_KEY:-minio123}
     depends_on:
       minio:
         condition: service_started
@@ -89,18 +93,24 @@ services:
   airflow-scheduler:
     image: apache/airflow:2.9.0
     container_name: airflow-scheduler
+    user: "${AIRFLOW_UID:-50000}:0"
     environment:
       AIRFLOW__CORE__EXECUTOR: LocalExecutor
-      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://pguser:pgpass@postgres:5432/airflow
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/airflow
+      AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+      AIRFLOW__WEBSERVER__EXPOSE_CONFIG: "true"
+      AIRFLOW__CORE__FERNET_KEY: ""
+      AIRFLOW__LOGGING__LOGGING_LEVEL: "INFO"
+      _AIRFLOW_DB_UPGRADE: "true"
+      _AIRFLOW_WWW_USER_CREATE: "true"
       _AIRFLOW_WWW_USER_USERNAME: admin
       _AIRFLOW_WWW_USER_PASSWORD: admin
     volumes:
       - ./airflow/dags:/opt/airflow/dags
       - ./airflow/logs:/opt/airflow/logs
-      - airflow-data:/opt/airflow
-    command: >
-      bash -c "airflow db migrate &&
-               airflow scheduler"
+      - ./airflow/plugins:/opt/airflow/plugins
+      - ./airflow/config:/opt/airflow/config
+    command: scheduler
     depends_on:
       postgres:
         condition: service_healthy
@@ -109,23 +119,27 @@ services:
   airflow-webserver:
     image: apache/airflow:2.9.0
     container_name: airflow-webserver
+    user: "${AIRFLOW_UID:-50000}:0"
     environment:
       AIRFLOW__CORE__EXECUTOR: LocalExecutor
-      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://pguser:pgpass@postgres:5432/airflow
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/airflow
+      AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+      AIRFLOW__WEBSERVER__EXPOSE_CONFIG: "true" 
+      AIRFLOW__CORE__FERNET_KEY: ""
       AIRFLOW__WEBSERVER__WORKERS: 2
+      AIRFLOW__LOGGING__LOGGING_LEVEL: "INFO"
     volumes:
       - ./airflow/dags:/opt/airflow/dags
       - ./airflow/logs:/opt/airflow/logs
-      - airflow-data:/opt/airflow
-    command: bash -c "airflow webserver"
+      - ./airflow/plugins:/opt/airflow/plugins
+      - ./airflow/config:/opt/airflow/config
+    command: webserver
     ports:
       - "8080:8080"
     depends_on:
-      airflow-scheduler:
-        condition: service_healthy
+      - airflow-scheduler
     restart: unless-stopped
 
 volumes:
   pg-data:
   minio-data:
-  airflow-data:
