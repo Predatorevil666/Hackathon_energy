@@ -2,11 +2,14 @@ from logging.handlers import TimedRotatingFileHandler, RotatingFileHandler
 import logging
 import os
 
+# Получаем путь к корневой директории проекта
+PROJECT_ROOT = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
+
 # Создание папок для логов, если они не существуют
 log_dirs = {
-    "info": "logs/logs_info",
-    "error": "logs/logs_error",
-    "warning": "logs/logs_warning",
+    "info": os.path.join(PROJECT_ROOT, "logs/logs_info"),
+    "error": os.path.join(PROJECT_ROOT, "logs/logs_error"),
+    "warning": os.path.join(PROJECT_ROOT, "logs/logs_warning"),
 }
 
 for dir in log_dirs.values():

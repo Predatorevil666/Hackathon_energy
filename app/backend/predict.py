@@ -6,8 +6,8 @@ import sys
 from botocore.exceptions import ClientError
 from typing import Optional, Any
 
-# Добавление корневого каталога в sys.path
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../")))
+# Добавляем корневую директорию проекта в sys.path
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 
 from config.logging_config import logger
 from config.models_config import (
