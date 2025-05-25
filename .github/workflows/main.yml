@@ -62,7 +62,7 @@ jobs:
         uses: actions/cache@v3
         with:
           path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('backend/requirements.txt')}}
+          key: ${{ runner.os }}-pip-${{ hashFiles('app/backend/requirements.txt')}}
           restore-keys: |
             ${{ runner.os }}-pip-
 
@@ -75,27 +75,27 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install ruff mypy
-          pip install -r /backend/requirements.txt
+          pip install -r ./app/backend/requirements.txt
 
       - name: Copy ruff config
         run: |
-          cp .backend/pyproject.toml ./backend/pyproject.toml
+          cp .backend/pyproject.toml ./app/backend/pyproject.toml
 
       - name: Run ruff check
         run: |
-          cd backend && ruff check . 1> ./ruff.log 2> ./ruff.error.log || true
+          cd app/backend && ruff check . 1> ./ruff.log 2> ./ruff.error.log || true
 
       - name: Run ruff format check
         run: |
-          cd backend && ruff format --check . 1> ./ruff.format.log 2> ./ruff.format.error.log || true
+          cd app/backend && ruff format --check . 1> ./ruff.format.log 2> ./ruff.format.error.log || true
 
       - name: Type check with mypy
         run: |
-          cd backend && mypy . 1> ./mypy.log 2> ./mypy.error.log || true
+          cd app/backend && mypy . 1> ./mypy.log 2> ./mypy.error.log || true
 
       - name: Run tests
         run: |
-          cd backend
+          cd app/backend
           pytest tests -v
 
       - name: Upload artifacts
@@ -103,12 +103,12 @@ jobs:
         with:
           name: backend-artifacts
           path: |
-            backend/ruff.log
-            backend/ruff.error.log
-            backend/ruff.format.log
-            backend/ruff.format.error.log
-            backend/mypy.log
-            backend/mypy.error.log
+            app/backend/ruff.log
+            app/backend/ruff.error.log
+            app/backend/ruff.format.log
+            app/backend/ruff.format.error.log
+            app/backend/mypy.log
+            app/backend/mypy.error.log
 
   frontend_test:
     runs-on: ubuntu-latest
@@ -180,8 +180,8 @@ jobs:
       - name: Push to GHCR registry
         uses: docker/build-push-action@v4
         with:
-          context: backend
-          file: backend/Dockerfile
+          context: app/backend
+          file: app/backend/Dockerfile
           push: true
           build-args: |
             POSTGRES_USER=${{ secrets.POSTGRES_USER }}
