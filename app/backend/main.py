@@ -4,13 +4,60 @@ import sys
 import os
 
 # Добавление корневого каталога в sys.path
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../")))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../")))
 
-from models import Record, PredictionResponse
+# Импорт моделей данных
+try:
+    from models import Record, PredictionResponse
+except ImportError:
+    try:
+        from app.backend.models import Record, PredictionResponse
+    except ImportError:
+        raise ImportError("Не удалось импортировать модели данных")
+
 import pandas as pd
-from predict import predict_records
-from config.logging_config import logger
-from config.api_config import API_TITLE, API_DESCRIPTION, API_VERSION
+# Импорт других модулей
+try:
+    from predict import predict_records
+    from config.logging_config import logger
+    from config.api_config import API_TITLE, API_DESCRIPTION, API_VERSION
+except ImportError:
+    try:
+        from app.backend.predict import predict_records
+        from app.backend.config.logging_config import logger
+        from app.backend.config.api_config import API_TITLE, API_DESCRIPTION, API_VERSION
+    except ImportError:
+        raise ImportError("Не удалось импортировать необходимые модули")
+
+# Импорт маршрутов Mistral API
+try:
+    from api.routes import router as mistral_router
+    has_mistral_api = True
+except ImportError:
+    try:
+        from app.backend.api.routes import router as mistral_router
+        has_mistral_api = True
+    except ImportError:
+        try:
+            logger.warning("Модуль Mistral API не найден, соответствующие маршруты будут недоступны")
+        except:
+            print("Модуль Mistral API не найден, соответствующие маршруты будут недоступны")
+        has_mistral_api = False
+
+# Импорт маршрутов для проверки адресов
+try:
+    from api.check_address_routes import router as address_router
+    has_address_api = True
+except ImportError:
+    try:
+        from app.backend.api.check_address_routes import router as address_router
+        has_address_api = True
+    except ImportError:
+        try:
+            logger.warning("Модуль проверки адресов не найден, соответствующие маршруты будут недоступны")
+        except:
+            print("Модуль проверки адресов не найден, соответствующие маршруты будут недоступны")
+        has_address_api = False
 
 # Настройка приложения
 app = FastAPI(
@@ -18,6 +65,22 @@ app = FastAPI(
     description=API_DESCRIPTION,
     version=API_VERSION,
 )
+
+# Включение маршрутов Mistral, если они доступны
+if has_mistral_api:
+    app.include_router(mistral_router)
+    try:
+        logger.info("Маршруты Mistral API успешно добавлены")
+    except:
+        print("Маршруты Mistral API успешно добавлены")
+
+# Включение маршрутов проверки адресов, если они доступны
+if has_address_api:
+    app.include_router(address_router)
+    try:
+        logger.info("Маршруты проверки адресов успешно добавлены")
+    except:
+        print("Маршруты проверки адресов успешно добавлены")
 
 
 @app.get("/health", tags=["System"])

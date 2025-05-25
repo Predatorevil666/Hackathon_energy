@@ -54,14 +54,14 @@ RUN chmod +x /entrypoint.sh
 
 # Создание директорий для логов с правильными правами
 RUN mkdir -p /app/logs/logs_info /app/logs/logs_error /app/logs/logs_warning && \
-    chown -R appuser:appuser /app
+    chown -R appuser:appuser /app /app/logs
 
 # Настройка переменных окружения Python
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1
 
 # Порт, который будет прослушивать приложение
-EXPOSE 8000
+EXPOSE 8003
 
 # Использование entrypoint и cmd
 ENTRYPOINT ["/entrypoint.sh"]
@@ -69,4 +69,4 @@ ENTRYPOINT ["/entrypoint.sh"]
 # Переключение на непривилегированного пользователя
 USER appuser
 
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8003"]

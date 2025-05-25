@@ -66,12 +66,16 @@ services:
       MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-minio}
       MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-minio123}
       MINIO_BUCKET: ${MINIO_BUCKET:-models}
+      MISTRAL_API_KEY: ${MISTRAL_API_KEY}
       PYTHONPATH: /app:/
     ports:
-      - "8003:8000"
+      - "8003:8003"
     volumes:
       - ./logs:/app/logs
       - ./config:/app/config
+      - ./.env:/app/.env
+      - ./app/backend/api:/app/api
+      - ./app/backend/main.py:/app/main.py
     depends_on:
       postgres:
         condition: service_healthy
@@ -106,10 +110,10 @@ services:
       _AIRFLOW_WWW_USER_USERNAME: admin
       _AIRFLOW_WWW_USER_PASSWORD: admin
     volumes:
-      - ./airflow/dags:/opt/airflow/dags
-      - ./airflow/logs:/opt/airflow/logs
-      - ./airflow/plugins:/opt/airflow/plugins
-      - ./airflow/config:/opt/airflow/config
+      - ./app/backend/airflow/dags:/opt/airflow/dags
+      - ./app/backend/airflow/logs:/opt/airflow/logs
+      - ./app/backend/airflow/plugins:/opt/airflow/plugins
+      - ./app/backend/airflow/config:/opt/airflow/config
     command: scheduler
     depends_on:
       postgres:
@@ -129,10 +133,10 @@ services:
       AIRFLOW__WEBSERVER__WORKERS: 2
       AIRFLOW__LOGGING__LOGGING_LEVEL: "INFO"
     volumes:
-      - ./airflow/dags:/opt/airflow/dags
-      - ./airflow/logs:/opt/airflow/logs
-      - ./airflow/plugins:/opt/airflow/plugins
-      - ./airflow/config:/opt/airflow/config
+      - ./app/backend/airflow/dags:/opt/airflow/dags
+      - ./app/backend/airflow/logs:/opt/airflow/logs
+      - ./app/backend/airflow/plugins:/opt/airflow/plugins
+      - ./app/backend/airflow/config:/opt/airflow/config
     command: webserver
     ports:
       - "8080:8080"

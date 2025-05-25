@@ -1,135 +1,63 @@
+#!/usr/bin/env python3
+"""
+Скрипт для взаимодействия с Mistral AI API.
+"""
+
 import os
-import requests
-import json
-import argparse
+import sys
+from pathlib import Path
 from dotenv import load_dotenv
-
-# Пытаемся загрузить .env из разных мест
-# Сначала из текущей директории
-load_dotenv()
-
-# Если не нашли, пробуем корень проекта
-if not os.getenv("MISTRAL_API_KEY"):
-    ROOT_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    dotenv_path = os.path.join(ROOT_DIR, '.env')
-    print(f"Пытаемся загрузить .env из: {dotenv_path}")
-    load_dotenv(dotenv_path=dotenv_path)
-
-# Получаем API ключ из переменной окружения
-MISTRAL_API_KEY = os.getenv("MISTRAL_API_KEY")
-if MISTRAL_API_KEY:
-    print("API ключ Mistral успешно загружен")
-else:
-    print("ВНИМАНИЕ: API ключ Mistral не найден в .env файле")
-
-MISTRAL_API_URL = "https://api.mistral.ai/v1/chat/completions"
+from mistralai.client import MistralClient
+from mistralai.models.chat_completion import ChatMessage
 
 
-def send_prompt_to_mistral(prompt, model="open-mistral-7b"):
-    """
-    Отправляет текстовый промпт к API Mistral и возвращает ответ.
+def setup_environment():
+    """Настройка окружения и загрузка API ключа из корневого .env файла или переменных окружения."""
+    # Сначала пытаемся получить ключ напрямую из переменных окружения
+    api_key = os.getenv("MISTRAL_API_KEY")
+    
+    # Если ключа нет в окружении, пытаемся загрузить из .env файла
+    if not api_key:
+        # Ищем .env файл в корневой директории проекта
+        root_dir = Path(__file__).parent.parent.parent.parent
+        env_path = root_dir / ".env"
+        
+        if env_path.exists():
+            load_dotenv(env_path)
+            api_key = os.getenv("MISTRAL_API_KEY")
+    
+    if not api_key:
+        print("Ошибка: MISTRAL_API_KEY не найден ни в переменных окружения, ни в .env файле")
+        raise ValueError("MISTRAL_API_KEY is required")
+    
+    return api_key
+
+
+def query_mistral(prompt, model="mistral-large-2411"):
+    """Отправка запроса к Mistral AI API.
     
     Args:
-        prompt (str): Текстовый запрос для отправки
-        model (str): Название модели Mistral AI для использования
-        
+        prompt: Текст запроса
+        model: Модель Mistral AI (по умолчанию: mistral-large-2411)
+    
     Returns:
-        dict: Ответ от API Mistral
+        Ответ от модели
     """
-    if not MISTRAL_API_KEY:
-        raise ValueError(
-            "MISTRAL_API_KEY не найден. Пожалуйста, установите переменную окружения."
+    api_key = setup_environment()
+    
+    client = MistralClient(api_key=api_key)
+    
+    messages = [
+        ChatMessage(role="user", content=prompt)
+    ]
+    
+    try:
+        chat_response = client.chat(
+            model=model,
+            messages=messages,
         )
-    
-    headers = {
-        "Content-Type": "application/json",
-        "Accept": "application/json",
-        "Authorization": f"Bearer {MISTRAL_API_KEY}"
-    }
-    
-    data = {
-        "model": model,
-        "messages": [
-            {"role": "user", "content": prompt}
-        ],
-        "temperature": 0.7,
-        "max_tokens": 1000
-    }
-    
-    try:
-        print(f"Отправляем запрос с моделью: {model}")
-        response = requests.post(MISTRAL_API_URL, headers=headers, json=data)
         
-        if response.status_code != 200:
-            print(f"Код ошибки: {response.status_code}")
-            print(f"Ответ сервера: {response.text}")
-            
-        response.raise_for_status()  # Проверка статуса ответа
-        return response.json()
-    except requests.exceptions.RequestException as e:
-        print(f"Ошибка при отправке запроса: {e}")
-        if hasattr(e, 'response') and e.response:
-            print(f"Ответ API: {e.response.text}")
-        return None
-
-
-def format_response(response):
-    """
-    Форматирует ответ от API для читаемого вывода.
-    
-    Args:
-        response (dict): Ответ от API Mistral
-        
-    Returns:
-        str: Форматированный текст ответа
-    """
-    if not response or "choices" not in response:
-        return "Не удалось получить ответ"
-    
-    try:
-        return response["choices"][0]["message"]["content"]
-    except (KeyError, IndexError):
-        return f"Ошибка при обработке ответа: {json.dumps(response, indent=2)}"
-
-
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(
-        description="Отправка промптов к Mistral AI API"
-    )
-    parser.add_argument(
-        "--prompt", type=str, help="Текст промпта для отправки"
-    )
-    parser.add_argument(
-        "--model", type=str, default="open-mistral-7b", 
-        help="Модель Mistral AI (по умолчанию: open-mistral-7b)"
-    )
-    parser.add_argument(
-        "--file", type=str, help="Путь к файлу с промптом"
-    )
-    
-    args = parser.parse_args()
-    
-    prompt_text = ""
-    if args.prompt:
-        prompt_text = args.prompt
-    elif args.file:
-        try:
-            with open(args.file, 'r', encoding='utf-8') as f:
-                prompt_text = f.read()
-        except Exception as e:
-            print(f"Ошибка при чтении файла: {e}")
-            exit(1)
-    else:
-        prompt_text = input("Введите ваш промпт: ")
-    
-    print(f"Отправляем запрос к модели {args.model}...")
-    response = send_prompt_to_mistral(prompt_text, model=args.model)
-    
-    if response:
-        formatted_response = format_response(response)
-        print("\nОтвет от Mistral AI:")
-        print("-" * 50)
-        print(formatted_response)
-        print("-" * 50)
-    else:
-        print("Не удалось получить ответ от API") 
+        return chat_response.choices[0].message.content
+    except Exception as e:
+        print(f"Ошибка при запросе к Mistral API: {e}")
+        raise e 
