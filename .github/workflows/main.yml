@@ -92,7 +92,7 @@ jobs:
       - name: Run tests
         run: |
           cd app/backend
-          pytest tests -v
+          PYTHONPATH=. pytest tests -v
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
