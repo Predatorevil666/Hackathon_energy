@@ -74,7 +74,7 @@ jobs:
       - name: Install Python dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install ruff mypy
+          pip install ruff mypy pytest
           pip install -r ./app/backend/requirements.txt
 
       - name: Run ruff check
@@ -106,40 +106,40 @@ jobs:
             app/backend/mypy.log
             app/backend/mypy.error.log
 
-  frontend_test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
+  # frontend_test:
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - uses: actions/checkout@v3
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v3
-        with:
-          node-version: '18'
+  #     - name: Setup Node.js
+  #       uses: actions/setup-node@v3
+  #       with:
+  #         node-version: '18'
           
-      - name: Cache Node modules
-        uses: actions/cache@v3
-        with:
-          path: |
-            **/node_modules
-          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
-          restore-keys: |
-            ${{ runner.os }}-node-
+  #     - name: Cache Node modules
+  #       uses: actions/cache@v3
+  #       with:
+  #         path: |
+  #           **/node_modules
+  #         key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+  #         restore-keys: |
+  #           ${{ runner.os }}-node-
 
-      - name: Install dependencies
-        working-directory: app/frontend
-        run: npm ci
+  #     - name: Install dependencies
+  #       working-directory: app/frontend
+  #       run: npm ci
 
-      - name: Lint and Type check Frontend
-        working-directory: app/frontend
-        run: npm run lint > lint.log 2> lint.error.log || true
+  #     - name: Lint and Type check Frontend
+  #       working-directory: app/frontend
+  #       run: npm run lint > lint.log 2> lint.error.log || true
 
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: frontend-artifacts
-          path: |
-            app/frontend/lint.log
-            app/frontend/lint.error.log
+  #     - name: Upload artifacts
+  #       uses: actions/upload-artifact@v4
+  #       with:
+  #         name: frontend-artifacts
+  #         path: |
+  #           app/frontend/lint.log
+  #           app/frontend/lint.error.log
 
   build_backend_and_push_to_ghcr:
     name: Build and push backend Docker image
@@ -210,54 +210,54 @@ jobs:
           rm -rf /tmp/.buildx-cache
           mv /tmp/.buildx-cache-new /tmp/.buildx-cache
 
-  build_frontend_and_push_to_ghcr:
-    name: Build and push frontend Docker image
-    runs-on: ubuntu-latest
-    needs: frontend_test
+  # build_frontend_and_push_to_ghcr:
+  #   name: Build and push frontend Docker image
+  #   runs-on: ubuntu-latest
+  #   needs: frontend_test
     
-    steps:
-      - name: Check out code
-        uses: actions/checkout@v3
+  #   steps:
+  #     - name: Check out code
+  #       uses: actions/checkout@v3
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v2
-        with:
-          driver-opts: |
-            image=moby/buildkit:v0.20.2
-            network=host
+  #     - name: Set up Docker Buildx
+  #       uses: docker/setup-buildx-action@v2
+  #       with:
+  #         driver-opts: |
+  #           image=moby/buildkit:v0.20.2
+  #           network=host
 
-      - name: Cache Docker layers
-        uses: actions/cache@v3
-        with:
-          path: /tmp/.buildx-cache
-          key: ${{ runner.os }}-docker-frontend-${{ github.sha }}
-          restore-keys: |
-            ${{ runner.os }}-docker-frontend-
+  #     - name: Cache Docker layers
+  #       uses: actions/cache@v3
+  #       with:
+  #         path: /tmp/.buildx-cache
+  #         key: ${{ runner.os }}-docker-frontend-${{ github.sha }}
+  #         restore-keys: |
+  #           ${{ runner.os }}-docker-frontend-
 
-      - name: Log in to ghcr.io
-        uses: docker/login-action@v2
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+  #     - name: Log in to ghcr.io
+  #       uses: docker/login-action@v2
+  #       with:
+  #         registry: ghcr.io
+  #         username: ${{ github.actor }}
+  #         password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push frontend
-        uses: docker/build-push-action@v4
-        with:
-          context: app/frontend
-          file: app/frontend/Dockerfile
-          push: true
-          build-args: |
-            API_URL=${{ secrets.FRONTEND_API_URL }}
-          cache-from: type=local,src=/tmp/.buildx-cache
-          cache-to: type=local,dest=/tmp/.buildx-cache-new,mode=max
-          tags: |
-            ${{ env.DOCKER_REGISTRY }}/${{ env.DOCKER_NAMESPACE }}/hackaton-energy-frontend:${{ env.VERSION }}
-            ${{ env.DOCKER_REGISTRY }}/${{ env.DOCKER_NAMESPACE }}/hackaton-energy-frontend:latest
+  #     - name: Build and push frontend
+  #       uses: docker/build-push-action@v4
+  #       with:
+  #         context: app/frontend
+  #         file: app/frontend/Dockerfile
+  #         push: true
+  #         build-args: |
+  #           API_URL=${{ secrets.FRONTEND_API_URL }}
+  #         cache-from: type=local,src=/tmp/.buildx-cache
+  #         cache-to: type=local,dest=/tmp/.buildx-cache-new,mode=max
+  #         tags: |
+  #           ${{ env.DOCKER_REGISTRY }}/${{ env.DOCKER_NAMESPACE }}/hackaton-energy-frontend:${{ env.VERSION }}
+  #           ${{ env.DOCKER_REGISTRY }}/${{ env.DOCKER_NAMESPACE }}/hackaton-energy-frontend:latest
 
   send_message:
     runs-on: ubuntu-latest
-    needs: [build_backend_and_push_to_ghcr, build_frontend_and_push_to_ghcr]
+    needs: [build_backend_and_push_to_ghcr]
     steps:
       - name: Send message to Telegram
         uses: appleboy/telegram-action@master
