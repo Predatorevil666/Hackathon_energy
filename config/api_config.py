@@ -1,13 +1,13 @@
 """
 Конфигурационный файл для настроек API.
 """
+
 import os
 
 # Настройки API
 API_TITLE = "Energy Consumption Predictor API"
 API_DESCRIPTION = (
-    "API для предсказания типа потребителя энергии "
-    "на основе данных потребления"
+    "API для предсказания типа потребителя энергии на основе данных потребления"
 )
 API_VERSION = "1.0.0"
 
@@ -19,4 +19,4 @@ PORT = int(os.getenv("PORT", "8000"))
 # Настройки CORS
 CORS_ORIGINS = os.getenv("CORS_ORIGINS", "*").split(",")
 CORS_METHODS = ["GET", "POST", "OPTIONS"]
-CORS_HEADERS = ["Content-Type", "Authorization"] 
+CORS_HEADERS = ["Content-Type", "Authorization"]

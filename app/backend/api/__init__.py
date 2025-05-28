@@ -1,1 +1,1 @@
-"""API utilities for Mistral AI and address checking.""" 
+"""API utilities for Mistral AI and address checking."""

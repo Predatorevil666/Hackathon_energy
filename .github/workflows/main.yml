@@ -77,10 +77,6 @@ jobs:
           pip install ruff mypy
           pip install -r ./app/backend/requirements.txt
 
-      - name: Copy ruff config
-        run: |
-          cp .backend/pyproject.toml ./app/backend/pyproject.toml
-
       - name: Run ruff check
         run: |
           cd app/backend && ruff check . 1> ./ruff.log 2> ./ruff.error.log || true
@@ -130,11 +126,11 @@ jobs:
             ${{ runner.os }}-node-
 
       - name: Install dependencies
-        working-directory: frontend
+        working-directory: app/frontend
         run: npm ci
 
       - name: Lint and Type check Frontend
-        working-directory: frontend
+        working-directory: app/frontend
         run: npm run lint > lint.log 2> lint.error.log || true
 
       - name: Upload artifacts
@@ -142,8 +138,8 @@ jobs:
         with:
           name: frontend-artifacts
           path: |
-            frontend/lint.log
-            frontend/lint.error.log
+            app/frontend/lint.log
+            app/frontend/lint.error.log
 
   build_backend_and_push_to_ghcr:
     name: Build and push backend Docker image
@@ -248,8 +244,8 @@ jobs:
       - name: Build and push frontend
         uses: docker/build-push-action@v4
         with:
-          context: frontend
-          file: frontend/Dockerfile
+          context: app/frontend
+          file: app/frontend/Dockerfile
           push: true
           build-args: |
             API_URL=${{ secrets.FRONTEND_API_URL }}

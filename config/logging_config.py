@@ -1,4 +1,4 @@
-from logging.handlers import TimedRotatingFileHandler, RotatingFileHandler
+from logging.handlers import TimedRotatingFileHandler
 import logging
 import os
 import sys
@@ -7,16 +7,18 @@ import sys
 PROJECT_ROOT = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
 
 # Настройка логгера
-logger = logging.getLogger('hackathon_energy')
+logger = logging.getLogger("hackathon_energy")
 logger.setLevel(logging.INFO)
 
 # Определяем, находимся ли мы в Docker-контейнере
-IN_DOCKER = os.environ.get('PYTHONPATH', '').startswith('/app:/')
+IN_DOCKER = os.environ.get("PYTHONPATH", "").startswith("/app:/")
 
 # Обработчик для вывода в консоль
 console_handler = logging.StreamHandler(sys.stdout)
 console_handler.setLevel(logging.INFO)
-console_formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+console_formatter = logging.Formatter(
+    "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+)
 console_handler.setFormatter(console_formatter)
 logger.addHandler(console_handler)
 
@@ -40,7 +42,9 @@ if not IN_DOCKER:
         backupCount=7,
     )
     info_handler.setLevel(logging.INFO)
-    info_formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    info_formatter = logging.Formatter(
+        "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    )
     info_handler.setFormatter(info_formatter)
     logger.addHandler(info_handler)
 
@@ -50,7 +54,9 @@ if not IN_DOCKER:
         backupCount=7,
     )
     error_handler.setLevel(logging.ERROR)
-    error_formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s - %(exc_info)s')
+    error_formatter = logging.Formatter(
+        "%(asctime)s - %(name)s - %(levelname)s - %(message)s - %(exc_info)s"
+    )
     error_handler.setFormatter(error_formatter)
     logger.addHandler(error_handler)
 
@@ -60,9 +66,11 @@ if not IN_DOCKER:
         backupCount=7,
     )
     warning_handler.setLevel(logging.WARNING)
-    warning_formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    warning_formatter = logging.Formatter(
+        "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    )
     warning_handler.setFormatter(warning_formatter)
     logger.addHandler(warning_handler)
 
 # Логирование SQLAlchemy
-logging.getLogger('sqlalchemy.engine').setLevel(logging.DEBUG) 
+logging.getLogger("sqlalchemy.engine").setLevel(logging.DEBUG)

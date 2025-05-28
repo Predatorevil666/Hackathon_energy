@@ -1,6 +1,7 @@
 """
 Конфигурационный файл для настроек моделей и их загрузки.
 """
+
 import os
 
 # Настройки S3/MinIO по умолчанию
@@ -15,4 +16,4 @@ TMP_MODEL_PATH = os.getenv("TMP_MODEL_PATH", "/tmp")
 
 # Настройки предсказания
 COMMERCIAL_THRESHOLD = os.getenv("COMMERCIAL_THRESHOLD", 0.5)
-FALLBACK_THRESHOLD = os.getenv("FALLBACK_THRESHOLD", 10000) 
+FALLBACK_THRESHOLD = os.getenv("FALLBACK_THRESHOLD", 10000)

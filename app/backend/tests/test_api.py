@@ -1,6 +1,5 @@
-import pytest
-from fastapi.testclient import TestClient
 from app.main import app
+from fastapi.testclient import TestClient
 
 client = TestClient(app)
 
@@ -20,13 +19,13 @@ def test_predict_endpoint():
             "roomsCount": 3,
             "residentsCount": 2,
             "buildingType": "Частный",
-            "consumption": {"1": 1000, "2": 1200, "3": 900}
+            "consumption": {"1": 1000, "2": 1200, "3": 900},
         }
     ]
-    
+
     response = client.post("/predict", json=test_data)
     assert response.status_code == 200
-    
+
     results = response.json()
     assert len(results) == 1
     assert "accountId" in results[0]
@@ -45,4 +44,4 @@ def test_predict_empty_list():
 def test_root_endpoint():
     """Тест для проверки корневого endpoint."""
     response = client.get("/")
-    assert response.status_code == 200 
+    assert response.status_code == 200

@@ -17,11 +17,11 @@ POSTGRES_PASSWORD = os.getenv("POSTGRES_PASSWORD", "postgres_password")
 def get_env_var(var_name, default=None):
     """
     Получает значение переменной окружения.
-    
+
     Args:
         var_name (str): Имя переменной окружения
         default (Any): Значение по умолчанию, если переменная не определена
-        
+
     Returns:
         str: Значение переменной окружения или default
     """
